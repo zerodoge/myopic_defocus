@@ -25,4 +25,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Myopic-Defocus-EXE
-          path: dist/main.exe
+          path: dist/Myopic_Sim.exe
