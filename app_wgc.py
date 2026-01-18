@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-色差模糊 - 使用 Windows Graphics Capture API (WGC)
+近视散焦 - 使用 Windows Graphics Capture API (WGC)
 WGC 比 mss (GDI) 快很多，且支持 WDA_EXCLUDEFROMCAPTURE
 """
 
@@ -18,9 +18,10 @@ import queue
 
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QSlider, QSpinBox, QLabel, QPushButton,
-                             QDoubleSpinBox, QGroupBox, QGridLayout)
+                             QDoubleSpinBox, QGroupBox, QGridLayout,
+                             QSystemTrayIcon, QMenu)
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
-from PySide6.QtGui import QPainter, QImage, QPixmap
+from PySide6.QtGui import QPainter, QImage, QPixmap, QIcon, QAction, QPixmap as QPixmapGui
 
 from windows_capture import WindowsCapture, Frame, InternalCaptureControl
 
@@ -255,7 +256,7 @@ class ControlWindow(QWidget):
         super().__init__()
         self.overlay = overlay
         self.config = load_config()
-        self.setWindowTitle("色差模糊 - WGC版")
+        self.setWindowTitle("近视散焦 - WGC版")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setup_ui()
         
@@ -325,7 +326,59 @@ class ControlWindow(QWidget):
         save_config(self.get_config())
     
     def closeEvent(self, e):
-        QApplication.quit()
+        # 关闭时隐藏到托盘，不退出程序
+        e.ignore()
+        self.hide()
+
+
+class TrayIcon(QSystemTrayIcon):
+    """系统托盘图标"""
+    def __init__(self, app, control, overlay):
+        # 创建一个简单的图标 (蓝色圆形)
+        icon_size = 64
+        icon_img = np.zeros((icon_size, icon_size, 4), dtype=np.uint8)
+        cv2.circle(icon_img, (32, 32), 28, (255, 150, 50, 255), -1)  # BGRA 蓝色
+        cv2.circle(icon_img, (32, 32), 28, (255, 200, 100, 255), 2)  # 边框
+        
+        qimg = QImage(icon_img.data, icon_size, icon_size, icon_size * 4, QImage.Format.Format_RGBA8888)
+        icon = QIcon(QPixmap.fromImage(qimg))
+        
+        super().__init__(icon, app)
+        self.app = app
+        self.control = control
+        self.overlay = overlay
+        self.setToolTip("近视散焦 - WGC版")
+        
+        # 创建托盘菜单
+        self.menu = QMenu()
+        
+        self.show_action = self.menu.addAction("打开设置")
+        self.show_action.triggered.connect(self.show_settings)
+        
+        self.menu.addSeparator()
+        
+        self.quit_action = self.menu.addAction("退出程序")
+        self.quit_action.triggered.connect(self.do_quit)
+        
+        self.setContextMenu(self.menu)
+        
+        # 双击托盘图标打开设置
+        self.activated.connect(self.on_activated)
+        
+        self.show()
+    
+    def show_settings(self):
+        self.control.show()
+        self.control.raise_()
+        self.control.activateWindow()
+    
+    def do_quit(self):
+        self.overlay.close()
+        self.app.quit()
+    
+    def on_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show_settings()
 
 
 if __name__ == '__main__':
@@ -340,6 +393,9 @@ if __name__ == '__main__':
     
     overlay = OverlayWindow(geo, scale)
     control = ControlWindow(overlay)
+    
+    # 创建系统托盘
+    tray = TrayIcon(app, control, overlay)
     
     overlay.show()
     overlay.start()
