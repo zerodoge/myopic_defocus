@@ -15,7 +15,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          pip install opencv-python PySide6 numpy
+          pip install opencv-python PySide6 numpy pyinstaller
           
       - name: Build with PyInstaller
         run: |
